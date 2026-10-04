@@ -13,6 +13,7 @@ import {
 	setStopCallback,
 } from './registry'
 import { getLeaf } from './obsidian-utils'
+import { resolveConnectionForValue } from './connection-models'
 import { SettingsTab } from './settings-tab'
 import { ModelPickerModal } from './settings-tab/model-picker'
 import { ToolPickerModal } from './settings-tab/tool-picker'
@@ -74,7 +75,7 @@ export default class LlmDocsPlugin extends Plugin implements ILlmDocsPlugin {
 					}
 				})
 				const customConns: LlmConnectionSettings[] = llmConnectionUrl
-					? [{ type: 'OpenAI' as const, baseUrl: llmConnectionUrl, apiKey: '' }]
+					? [resolveConnectionForValue(this.settings.connections, llmConnectionUrl)]
 					: []
 				const modelPickerModal = new ModelPickerModal(this.app, this, customConns[0])
 				const model = await modelPickerModal.openAndGetResult()
@@ -103,7 +104,7 @@ export default class LlmDocsPlugin extends Plugin implements ILlmDocsPlugin {
 					}
 				})
 				const customConns: LlmConnectionSettings[] = llmConnectionUrl
-					? [{ type: 'OpenAI' as const, baseUrl: llmConnectionUrl, apiKey: '' }]
+					? [resolveConnectionForValue(this.settings.connections, llmConnectionUrl)]
 					: []
 
 				const modelPickerModal = new ModelPickerModal(this.app, this, customConns[0])

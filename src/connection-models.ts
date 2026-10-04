@@ -8,6 +8,36 @@ export function getConnectionId(connection: LlmConnectionSettings) {
 	return connection.type + connection.baseUrl
 }
 
+/**
+ * Resolve the connection to use for an explicit `llm_connection` value.
+ *
+ * The value may be a connection's short name, or a connection URL. If neither
+ * matches a configured connection, an ad-hoc connection is created for the URL;
+ * it borrows the type and API key of the default connection (if any), so that
+ * impromptu URLs such as a different local ollama port still authenticate.
+ */
+export function resolveConnectionForValue(
+	connections: LlmConnectionSettings[],
+	value: string,
+): LlmConnectionSettings {
+	const named = connections.find((connection) => connection.name === value)
+	if (named) {
+		return named
+	}
+
+	const byUrl = connections.find((connection) => connection.baseUrl === value)
+	if (byUrl) {
+		return byUrl
+	}
+
+	const fallback = connections.find((connection) => connection.isDefault)
+	return {
+		type: fallback?.type ?? 'OpenAI',
+		baseUrl: value,
+		apiKey: fallback?.apiKey ?? '',
+	}
+}
+
 export async function getAvailableModelsAndUpdateCache(connection: LlmConnectionSettings) {
 	const connectionId = getConnectionId(connection)
 	let models = await getAvailableOpenaiModels(connection)

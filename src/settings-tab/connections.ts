@@ -33,9 +33,42 @@ export function addConnectionsSettings(containerEl: HTMLElement, plugin: LlmDocs
 			await plugin.saveSettings()
 		}
 
-		// Row 2: base URL field
+		// Row 2: short name and default selector
 		const row2 = group.createDiv({ cls: 'llmdocs-connection-row' })
-		const baseUrlInput = row2.createEl('input', { cls: 'llmdocs-connection-baseurl' })
+
+		const nameInput = row2.createEl('input', { cls: 'llmdocs-connection-name' })
+		nameInput.type = 'text'
+		nameInput.placeholder = 'Short name (optional)'
+		nameInput.value = connection.name ?? ''
+		nameInput.oninput = async () => {
+			if (nameInput.value.includes(':')) {
+				nameInput.addClass('llmdocs-connection-name-invalid')
+				new Notice('Connection short names cannot contain a colon')
+				return
+			}
+			nameInput.removeClass('llmdocs-connection-name-invalid')
+			const value = nameInput.value.trim()
+			plugin.settings.connections[index].name = value.length ? value : undefined
+			await plugin.saveSettings()
+		}
+
+		const defaultLabel = row2.createEl('label', { cls: 'llmdocs-connection-default' })
+		const defaultInput = defaultLabel.createEl('input')
+		defaultInput.type = 'radio'
+		defaultInput.name = 'llmdocs-default-connection'
+		defaultInput.checked = !!connection.isDefault
+		defaultInput.onchange = async () => {
+			plugin.settings.connections.forEach((c, i) => {
+				c.isDefault = i === index
+			})
+			await plugin.saveSettings()
+			redraw()
+		}
+		defaultLabel.createSpan({ text: 'Default' })
+
+		// Row 3: base URL field
+		const row3 = group.createDiv({ cls: 'llmdocs-connection-row' })
+		const baseUrlInput = row3.createEl('input', { cls: 'llmdocs-connection-baseurl' })
 		baseUrlInput.type = 'text'
 		baseUrlInput.placeholder = 'Base URL'
 		baseUrlInput.value = connection.baseUrl
@@ -44,10 +77,10 @@ export function addConnectionsSettings(containerEl: HTMLElement, plugin: LlmDocs
 			await plugin.saveSettings()
 		}
 
-		// Row 3: buttons
-		const row3 = group.createDiv({ cls: 'llmdocs-connection-row llmdocs-connection-buttons' })
+		// Row 4: buttons
+		const row4 = group.createDiv({ cls: 'llmdocs-connection-row llmdocs-connection-buttons' })
 
-		const testButton = row3.createEl('button', { text: 'Test', cls: 'llmdocs-connection-button' })
+		const testButton = row4.createEl('button', { text: 'Test', cls: 'llmdocs-connection-button' })
 		testButton.onclick = async () => {
 			testButton.disabled = true
 			try {
@@ -59,7 +92,7 @@ export function addConnectionsSettings(containerEl: HTMLElement, plugin: LlmDocs
 			testButton.disabled = false
 		}
 
-		const removeButton = row3.createEl('button', { text: 'Remove', cls: 'llmdocs-connection-button' })
+		const removeButton = row4.createEl('button', { text: 'Remove', cls: 'llmdocs-connection-button' })
 		removeButton.onclick = async () => {
 			plugin.settings.connections.splice(index, 1)
 			await plugin.saveSettings()

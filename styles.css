@@ -169,6 +169,23 @@ If your plugin does not need CSS, delete this file.
 	width: 100%;
 }
 
+.llmdocs-connection-name {
+	flex: 1 1 0;
+	min-width: 0;
+}
+
+.llmdocs-connection-name-invalid {
+	border-color: var(--text-error);
+}
+
+.llmdocs-connection-default {
+	flex: 0 0 auto;
+	white-space: nowrap;
+	display: flex;
+	align-items: center;
+	gap: 0.25em;
+}
+
 .llmdocs-connection-buttons {
 	gap: 0.5em;
 }

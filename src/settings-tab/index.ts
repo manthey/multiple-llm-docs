@@ -109,7 +109,7 @@ export class SettingsTab extends PluginSettingTab {
 			createFragment((e) => {
 				const baseParams: [string, string][] = [
 					['model', 'a single model name or a list of models to use for chat'],
-					['llm_connection', 'change the connection endpoint'],
+					['llm_connection', 'a connection short name, or a connection endpoint URL. URLs not in the settings use the default connection\'s API key'],
 					[
 						'llm_tools',
 						'Use the plugin setting to determine default selection (all or none). Explicitly set to array to override.',

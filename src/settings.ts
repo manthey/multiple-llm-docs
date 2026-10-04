@@ -26,6 +26,10 @@ export interface LlmConnectionSettings {
 	type: 'OpenAI' // 'Anthropic' and other types in future
 	baseUrl: string
 	apiKey: string
+	/** Short name usable in the `llm_connection` frontmatter key. Must not contain a colon. */
+	name?: string
+	/** Whether this connection is the default, used for impromptu connection URLs not in the settings. */
+	isDefault?: boolean
 }
 
 export interface McpToolServerSettings {

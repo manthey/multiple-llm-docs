@@ -9,7 +9,7 @@ import {
 } from './llm-doc-util'
 import { DefaultsSettings, LlmConnectionSettings, McpToolServerSettings } from './settings'
 import { getImageLinkResolver, getDocLinkResolver } from './obsidian-utils'
-import { resolveConnectionForModel } from './connection-models'
+import { resolveConnectionForModel, resolveConnectionForValue } from './connection-models'
 import { McpManager } from './mcp'
 
 export interface LlmDocProperties {
@@ -142,11 +142,7 @@ export class LlmDoc {
 			const model = models[i]
 			let connectionSettings: LlmConnectionSettings | null
 			if (this.properties.connection) {
-				connectionSettings = connections.find((c) => c.baseUrl === this.properties.connection) ?? {
-					type: 'OpenAI',
-					baseUrl: this.properties.connection,
-					apiKey: '',
-				}
+				connectionSettings = resolveConnectionForValue(connections, this.properties.connection)
 			} else {
 				connectionSettings = await resolveConnectionForModel(connections, model)
 			}
