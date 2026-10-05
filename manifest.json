@@ -3,7 +3,7 @@
 	"name": "Multiple LLM docs",
 	"version": "1.4.0",
 	"minAppVersion": "1.7.0",
-	"description": "LLM client using pure markdown documents based on Shane Lamb's code",
+	"description": "LLM client using pure markdown documents based on Shane Lamb's code; can run multiple models on the same prompt and works on desktop and mobile",
 	"author": "David Manthey",
 	"isDesktopOnly": false
 }
