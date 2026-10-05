@@ -13,7 +13,7 @@ import {
 	setStopCallback,
 } from './registry'
 import { getLeaf } from './obsidian-utils'
-import { resolveConnectionForValue } from './connection-models'
+import { ensureDefaultConnection, resolveConnectionForValue } from './connection-models'
 import { SettingsTab } from './settings-tab'
 import { ModelPickerModal } from './settings-tab/model-picker'
 import { ToolPickerModal } from './settings-tab/tool-picker'
@@ -251,6 +251,10 @@ export default class LlmDocsPlugin extends Plugin implements ILlmDocsPlugin {
 
 	async loadSettings() {
 		this.settings = Object.assign({}, defaultPluginSettings, await this.loadData())
+		// there must always be a default connection when any are configured
+		if (ensureDefaultConnection(this.settings.connections)) {
+			await this.saveSettings()
+		}
 		// todo: delete all keys (recursively) that are not in defaultPluginSettings
 	}
 

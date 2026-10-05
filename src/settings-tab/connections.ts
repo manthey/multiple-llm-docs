@@ -1,6 +1,6 @@
 import { Notice, Setting } from 'obsidian'
 import LlmDocsPlugin from '../main'
-import { getAvailableModelsAndUpdateCache } from '../connection-models'
+import { ensureDefaultConnection, getDefaultConnection, getAvailableModelsAndUpdateCache } from '../connection-models'
 
 export function addConnectionsSettings(containerEl: HTMLElement, plugin: LlmDocsPlugin, redraw: () => void) {
 	new Setting(containerEl)
@@ -56,7 +56,7 @@ export function addConnectionsSettings(containerEl: HTMLElement, plugin: LlmDocs
 		const defaultInput = defaultLabel.createEl('input')
 		defaultInput.type = 'radio'
 		defaultInput.name = 'llmdocs-default-connection'
-		defaultInput.checked = !!connection.isDefault
+		defaultInput.checked = getDefaultConnection(plugin.settings.connections) === connection
 		defaultInput.onchange = async () => {
 			plugin.settings.connections.forEach((c, i) => {
 				c.isDefault = i === index
@@ -95,6 +95,7 @@ export function addConnectionsSettings(containerEl: HTMLElement, plugin: LlmDocs
 		const removeButton = row4.createEl('button', { text: 'Remove', cls: 'llmdocs-connection-button' })
 		removeButton.onclick = async () => {
 			plugin.settings.connections.splice(index, 1)
+			ensureDefaultConnection(plugin.settings.connections)
 			await plugin.saveSettings()
 			redraw()
 		}
@@ -107,6 +108,7 @@ export function addConnectionsSettings(containerEl: HTMLElement, plugin: LlmDocs
 				apiKey: '',
 				type: 'OpenAI',
 			})
+			ensureDefaultConnection(plugin.settings.connections)
 			await plugin.saveSettings()
 			redraw()
 		})
