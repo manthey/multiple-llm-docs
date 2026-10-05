@@ -1,6 +1,6 @@
 {
-	"id": "llm-docs",
-	"name": "LLM docs",
+	"id": "multiple-llm-docs",
+	"name": "Multiple LLM docs",
 	"version": "1.4.0",
 	"minAppVersion": "1.7.0",
 	"description": "LLM client using pure markdown documents based on Shane Lamb's code",

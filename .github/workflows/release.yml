@@ -1,0 +1,40 @@
+name: Release
+
+on:
+    push:
+        tags:
+            - '[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+    contents: write
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Set version from tag
+              run: node version-from-tag.mjs "${GITHUB_REF_NAME}"
+
+            - name: Build
+              run: npm run build
+
+            - name: Create release
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  gh release create "${GITHUB_REF_NAME}" \
+                    main.js styles.css manifest.json \
+                    --title "${GITHUB_REF_NAME}" \
+                    --generate-notes

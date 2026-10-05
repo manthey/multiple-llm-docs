@@ -44,7 +44,7 @@ export class McpManager {
 	}
 
 	private async connectServer(config: McpToolServerSettings): Promise<ConnectedServer | null> {
-		const client = new Client({ name: 'llm-docs', version: '1.0.0' })
+		const client = new Client({ name: 'multiple-llm-docs', version: '1.0.0' })
 		const transport = await this.createTransport(config)
 		if (!transport) return null
 
