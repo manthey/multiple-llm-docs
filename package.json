@@ -37,5 +37,10 @@
 	"overrides": {
 		"glob": "^13.0.0",
 		"test-exclude": "^8.0.0"
+	},
+	"allowScripts": {
+		"unrs-resolver@1.12.2": true,
+		"esbuild@0.27.7": true,
+		"@parcel/watcher@2.6.0": true
 	}
 }
