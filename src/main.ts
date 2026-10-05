@@ -25,7 +25,7 @@ interface WakeLockSentinel {
 
 export default class LlmDocsPlugin extends Plugin implements ILlmDocsPlugin {
 	private wakeLock: WakeLockSentinel | null = null
-	settings: PluginSettings
+	declare settings: PluginSettings
 
 	async onload() {
 		await this.loadSettings()
