@@ -6,7 +6,7 @@ import { ValueEmitter } from '../utils'
 import LlmDocsPlugin from '../main'
 
 export class ModelPickerModal extends SuggestModal<Model> {
-	private models: Model[]
+	private models!: Model[]
 	private onResult = new ValueEmitter<string | null>()
 	private unsubscribe = modelCacheUpdated.on(() => {
 		this.refreshModels()

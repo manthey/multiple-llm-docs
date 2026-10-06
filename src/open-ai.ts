@@ -73,7 +73,7 @@ export class OpenaiChatCompletionStream extends SimpleEventEmitter {
 		try {
 			await this.doRequest()
 		} catch (error) {
-			if (error.name !== 'AbortError') {
+			if ((error as Error).name !== 'AbortError') {
 				this.emit('error', error)
 			}
 		} finally {

@@ -16,8 +16,8 @@ import { fileEvents, getLlmDocsPlugin, getStopCallback, isFileBeingProcessed } f
 type PosRange = { from: number; to: number }
 
 class LlmDocsCodemirrorPlugin implements PluginValue {
-	decorations: DecorationSet
-	cursorCanBeObscured: boolean
+	decorations!: DecorationSet
+	cursorCanBeObscured!: boolean
 
 	constructor(private readonly view: EditorView) {
 		this.rebuild()

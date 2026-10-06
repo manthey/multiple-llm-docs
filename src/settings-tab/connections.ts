@@ -87,7 +87,7 @@ export function addConnectionsSettings(containerEl: HTMLElement, plugin: LlmDocs
 				await getAvailableModelsAndUpdateCache(connection)
 				new Notice('Connection success!')
 			} catch (error) {
-				new Notice(error)
+				new Notice(String(error))
 			}
 			testButton.disabled = false
 		}

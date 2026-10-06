@@ -39,6 +39,7 @@ export default class LlmDocsPlugin extends Plugin implements ILlmDocsPlugin {
 		this.addCommand({
 			id: 'create',
 			name: 'Create new LLM document',
+			icon: 'bot',
 			callback: () => this.createNewDoc(),
 		})
 
@@ -190,7 +191,7 @@ export default class LlmDocsPlugin extends Plugin implements ILlmDocsPlugin {
 			document.addEventListener('keydown', onkeydown)
 			await doc.complete(this.settings.connections, editor, this.settings.toolServers)
 		} catch (error) {
-			new Notice(error)
+			new Notice(String(error))
 		} finally {
 			document.removeEventListener('keydown', onkeydown)
 		}
