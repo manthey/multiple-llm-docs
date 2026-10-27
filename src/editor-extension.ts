@@ -44,7 +44,14 @@ class LlmDocsCodemirrorPlugin implements PluginValue {
 	}
 
 	rebuild() {
-		this.decorations = this.buildDecorations()
+		try {
+			this.decorations = this.buildDecorations()
+		} catch (error) {
+			// a broken decoration build should degrade to no styling rather than
+			// killing the whole plugin
+			console.error('llm-docs: failed to build decorations', error)
+			this.decorations = Decoration.none
+		}
 	}
 
 	private buildDecorations(): DecorationSet {
@@ -97,6 +104,15 @@ class LlmDocsCodemirrorPlugin implements PluginValue {
 							class: 'llmdocs-heading-notes',
 						}),
 					)
+				} else if (line.match(/^# (new|reset).*$/)) {
+					builder.add(
+						offset,
+						offset + line.length,
+						Decoration.mark({
+							class: 'llmdocs-heading-divider',
+						}),
+					)
+					promptStart = null
 				} else {
 					const m = line.match(/^(# assistant\d*)(\s+\(.*\))?$/)
 					if (m) {
@@ -156,18 +172,26 @@ class LlmDocsCodemirrorPlugin implements PluginValue {
 			return true
 		}
 
-		// if the prompt text has nothing but whitespace, don't show
-		const promptText = doc.sliceString(promptStart)
-		if (!promptText.trim()) {
+		// if the prompt text has nothing but whitespace, don't show.
+		// promptStart is the end of the heading line, so scan from the next line.
+		// scan line by line with an early exit instead of copying the whole rest
+		// of the document into a single string
+		const headingLineNumber = doc.lineAt(promptStart).number
+		if (headingLineNumber >= doc.lines) {
+			// the heading is the last line of the document - there is nothing after
+			// it to complete (also avoids an out-of-range line number below)
 			return false
 		}
-
-		// don't show the footer if doing so will hide the cursor
-		if (this.cursorCanBeObscured) {
-			return false
+		for (const line of doc.iterLines(headingLineNumber + 1)) {
+			if (line.trim()) {
+				// don't show the footer if doing so will hide the cursor
+				if (this.cursorCanBeObscured) {
+					return false
+				}
+				return true
+			}
 		}
-
-		return true
+		return false
 	}
 
 	enabled() {

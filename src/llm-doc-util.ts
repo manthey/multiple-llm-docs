@@ -10,8 +10,35 @@ export function textToMessages(text: string): ParsedMessage[] {
 	const lines = text.split('\n')
 	let currentRole: string | null = null
 	let currentLines: string[] = []
+	let sawHeading = false
 	const messages: ParsedMessage[] = []
+	const flush = () => {
+		if (currentRole && currentRole !== 'note') {
+			messages.push({ role: currentRole, content: currentLines.join('\n') })
+		}
+		currentLines = []
+	}
 	for (const line of lines) {
+		if (line.match(/^# reset.*$/)) {
+			// ignore everything before a reset divider, including system messages
+			sawHeading = true
+			messages.length = 0
+			currentRole = null
+			currentLines = []
+			continue
+		}
+		if (line.match(/^# new.*$/)) {
+			// ignore everything before a new divider except system messages
+			sawHeading = true
+			flush()
+			for (let i = messages.length - 1; i >= 0; i--) {
+				if (!messages[i].role.startsWith('system')) {
+					messages.splice(i, 1)
+				}
+			}
+			currentRole = null
+			continue
+		}
 		let newRole: string | null = null
 		const systemMatch = line.match(/^# (system\d*)$/)
 		if (systemMatch) {
@@ -28,6 +55,7 @@ export function textToMessages(text: string): ParsedMessage[] {
 			newRole = assistantMatch[1]
 		}
 		if (newRole) {
+			sawHeading = true
 			if (currentRole && currentRole !== 'note') {
 				messages.push({ role: currentRole, content: currentLines.join('\n') })
 			}
@@ -39,9 +67,12 @@ export function textToMessages(text: string): ParsedMessage[] {
 	}
 	if (currentRole && currentRole !== 'note') {
 		messages.push({ role: currentRole, content: currentLines.join('\n') })
+	} else if (sawHeading && currentRole === null && currentLines.some((line) => line.trim())) {
+		// trailing text after a divider without a role heading is an implicit user message
+		messages.push({ role: 'user', content: currentLines.join('\n') })
 	}
 
-	if (!messages.length) {
+	if (!messages.length && !sawHeading) {
 		messages.push({ role: 'user', content: text })
 	}
 

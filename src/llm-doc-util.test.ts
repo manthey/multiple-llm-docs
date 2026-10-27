@@ -30,6 +30,152 @@ describe('LLM doc util', () => {
 		})
 	})
 
+	describe('context dividers', () => {
+		it('should ignore text before # new except system blocks', () => {
+			const originalText = ['# system', 'sys', '# user', 'u1', '# assistant', 'a1', '# new', '# user', 'u2'].join(
+				'\n',
+			)
+			expect(textToMessages(originalText)).toEqual([
+				{ role: 'system', content: 'sys' },
+				{ role: 'user', content: 'u2' },
+			])
+		})
+
+		it('should ignore text before # reset including system blocks', () => {
+			const originalText = ['# system', 'sys', '# user', 'u1', '# reset', '# user', 'u2'].join('\n')
+			expect(textToMessages(originalText)).toEqual([{ role: 'user', content: 'u2' }])
+		})
+
+		it('should keep multiple system blocks across # new dividers', () => {
+			const originalText = [
+				'# system1',
+				'sys1',
+				'# user',
+				'u1',
+				'# new',
+				'# system2',
+				'sys2',
+				'# new',
+				'# user',
+				'u2',
+			].join('\n')
+			expect(textToMessages(originalText)).toEqual([
+				{ role: 'system1', content: 'sys1' },
+				{ role: 'system2', content: 'sys2' },
+				{ role: 'user', content: 'u2' },
+			])
+		})
+
+		it('should treat trailing text after a divider as an implicit user message', () => {
+			const originalText = ['# user', 'u1', '# new', 'hello'].join('\n')
+			expect(textToMessages(originalText)).toEqual([{ role: 'user', content: 'hello' }])
+		})
+
+		it('should support suffixes on dividers', () => {
+			const originalText = ['# user', 'u1', '# new context A', '# user', 'u2'].join('\n')
+			expect(textToMessages(originalText)).toEqual([{ role: 'user', content: 'u2' }])
+		})
+
+		it('should not fall back to whole-text user message when a divider leaves no messages', () => {
+			const originalText = ['# system', 'sys', '# reset', ''].join('\n')
+			expect(textToMessages(originalText)).toEqual([])
+		})
+	})
+
+	describe('incremental input (typing and pasting)', () => {
+		const CONVERSATION = '# system\nsys\n# user\nhello\n# assistant\nhi there\n# new\n# user\nnext message'
+
+		// parse after each character, as if the text was typed
+		const typeText = (text: string): ParsedMessage[][] => {
+			const snapshots: ParsedMessage[][] = []
+			for (let end = 1; end <= text.length; end++) {
+				snapshots.push(textToMessages(text.slice(0, end)))
+			}
+			return snapshots
+		}
+
+		// parse after appending each chunk, as if the text was bulk pasted
+		const pasteChunks = (chunks: string[]): ParsedMessage[] => {
+			let text = ''
+			let messages: ParsedMessage[] = []
+			for (const chunk of chunks) {
+				text += chunk
+				messages = textToMessages(text)
+			}
+			return messages
+		}
+
+		it('should produce sane intermediate states while typing', () => {
+			const snapshots = typeText(CONVERSATION)
+			for (const messages of snapshots) {
+				for (const message of messages) {
+					// dividers are context boundaries, never messages
+					expect(message.role).toMatch(/^(system|user|assistant|note)\d*$/)
+					expect(typeof message.content).toBe('string')
+				}
+			}
+			// the final typed state must match wholesale insertion
+			expect(snapshots[snapshots.length - 1]).toEqual(textToMessages(CONVERSATION))
+			expect(snapshots[snapshots.length - 1]).toEqual([
+				{ role: 'system', content: 'sys' },
+				{ role: 'user', content: 'next message' },
+			])
+		})
+
+		it('should keep the previous context while a # new line is being typed and drop it once the line is complete', () => {
+			const base = '# system\nsys\n# user\nhello'
+			expect(textToMessages(base)).toEqual([
+				{ role: 'system', content: 'sys' },
+				{ role: 'user', content: 'hello' },
+			])
+			// partial divider text is still just text in the user block
+			expect(textToMessages(`${base}\n# ne`)).toEqual([
+				{ role: 'system', content: 'sys' },
+				{ role: 'user', content: 'hello\n# ne' },
+			])
+			// completing the divider line drops the previous context, keeping system
+			expect(textToMessages(`${base}\n# new`)).toEqual([{ role: 'system', content: 'sys' }])
+			// and the new context builds up from there
+			expect(textToMessages(`${base}\n# new\n# user\nnext`)).toEqual([
+				{ role: 'system', content: 'sys' },
+				{ role: 'user', content: 'next' },
+			])
+		})
+
+		it('should drop system blocks while a # reset line is being typed once the line is complete', () => {
+			const base = '# system\nsys\n# user\nhello'
+			expect(textToMessages(`${base}\n# re`)).toEqual([
+				{ role: 'system', content: 'sys' },
+				{ role: 'user', content: 'hello\n# re' },
+			])
+			expect(textToMessages(`${base}\n# reset`)).toEqual([])
+			expect(textToMessages(`${base}\n# reset\n# user\nagain`)).toEqual([{ role: 'user', content: 'again' }])
+		})
+
+		it('should not treat a heading as complete until its line is fully typed', () => {
+			expect(textToMessages('# use')).toEqual([{ role: 'user', content: '# use' }])
+			expect(textToMessages('# user')).toEqual([{ role: 'user', content: '' }])
+			expect(textToMessages('# user\nhel')).toEqual([{ role: 'user', content: 'hel' }])
+			expect(textToMessages('# assistant1 (g')).toEqual([{ role: 'user', content: '# assistant1 (g' }])
+			expect(textToMessages('# assistant1 (gpt-4)')).toEqual([{ role: 'assistant1', content: '' }])
+		})
+
+		it('should parse pasted text identically to typed text', () => {
+			// whatever the chunking, the parse at a given text state only depends
+			// on the text itself
+			const chunks = [CONVERSATION.slice(0, 10), CONVERSATION.slice(10, 40), CONVERSATION.slice(40)]
+			expect(pasteChunks(chunks)).toEqual(textToMessages(CONVERSATION))
+			// a single big paste behaves the same as typing the same text
+			const typed = typeText(CONVERSATION)
+			expect(pasteChunks([CONVERSATION])).toEqual(typed[typed.length - 1])
+			// pasting onto an existing note keeps the divider semantics
+			expect(pasteChunks(['# system\nsys\n# user\nhi\n', '# new\n# user\nnext'])).toEqual([
+				{ role: 'system', content: 'sys' },
+				{ role: 'user', content: 'next' },
+			])
+		})
+	})
+
 	describe('messages preprocessing', () => {
 		it('should remove system prompt if it contains only whitespace', async () => {
 			const messages: OpenaiBasicMessage[] = [

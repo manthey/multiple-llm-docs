@@ -22,6 +22,10 @@ If your plugin does not need CSS, delete this file.
 	color: var(--color-cyan);
 }
 
+.llmdocs-heading-divider {
+	color: var(--color-blue);
+}
+
 .llmdocs-heading-assistant-model {
 	font-size: 0.6em;
 	color: var(--text-muted);
