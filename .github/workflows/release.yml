@@ -31,7 +31,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-          main.js styles.css manifest.json \
-          --title "${GITHUB_REF_NAME}" \
-          --generate-notes
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" \
+            main.js styles.css manifest.json \
+            --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+            main.js styles.css manifest.json \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes
+          fi
