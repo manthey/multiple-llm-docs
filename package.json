@@ -17,7 +17,7 @@
 	],
 	"author": "Shane Lamb",
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.12.1"
+		"@modelcontextprotocol/sdk": "^1.32.2"
 	},
 	"devDependencies": {
 		"@codemirror/language": "^6.13.1",
