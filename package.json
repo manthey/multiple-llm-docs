@@ -29,7 +29,7 @@
 		"jest": "^30.0.0",
 		"obsidian": "latest",
 		"prettier": "^3.9.10",
-		"ts-jest": "^29.2.5",
+		"ts-jest": "^29.4.15",
 		"tslib": "^2.4.0",
 		"typescript": "^6.0.0"
 	},
