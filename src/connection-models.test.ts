@@ -1,6 +1,23 @@
-import { describe, expect, it } from '@jest/globals'
+import { describe, expect, it, jest, beforeEach } from '@jest/globals'
 import { LlmConnectionSettings } from './settings'
-import { ensureDefaultConnection, getDefaultConnection, resolveConnectionForValue } from './connection-models'
+import {
+	ensureDefaultConnection,
+	getDefaultConnection,
+	getConnectionId,
+	getDefaultConnectionId,
+	getAvailableModelsAndUpdateCache,
+	getAllAvailableModelsAndUpdateCache,
+	modelToConnectionCache,
+	resolveConnectionForModel,
+	resolveConnectionForValue,
+} from './connection-models'
+import { modelCacheUpdated } from './registry'
+
+// Network guard: model fetches are mocked for the cache tests below.
+jest.mock('./open-ai', () => ({
+	getAvailableOpenaiModels: jest.fn(),
+}))
+const { getAvailableOpenaiModels }: any = jest.requireMock('./open-ai')
 
 function connection(overrides: Partial<LlmConnectionSettings> = {}): LlmConnectionSettings {
 	return {
@@ -91,5 +108,123 @@ describe('resolveConnectionForValue', () => {
 		const resolved = resolveConnectionForValue([], 'https://impromptu')
 		expect(resolved.apiKey).toBe('')
 		expect(resolved.type).toBe('OpenAI')
+	})
+})
+
+describe('getConnectionId / getDefaultConnectionId', () => {
+	it('builds the id from type and base url', () => {
+		expect(getConnectionId(connection({ type: 'OpenAI', baseUrl: 'https://x' }))).toBe('OpenAIhttps://x')
+	})
+
+	it('returns null for the default id when there are no connections', () => {
+		expect(getDefaultConnectionId([])).toBeNull()
+	})
+})
+
+describe('resolveConnectionForValue', () => {
+	it('matches a connection by short name', () => {
+		const named = connection({ name: 'main' })
+		expect(resolveConnectionForValue([connection(), named], 'main')).toBe(named)
+	})
+
+	it('matches a connection by base url', () => {
+		const byUrl = connection({ baseUrl: 'https://specific' })
+		expect(resolveConnectionForValue([connection(), byUrl], 'https://specific')).toBe(byUrl)
+	})
+
+	it('prefers the explicitly marked default for borrowed credentials', () => {
+		const fallback = connection({ baseUrl: 'https://default', isDefault: true, apiKey: 'default-key', type: 'OpenAI' })
+		const resolved = resolveConnectionForValue([connection({ apiKey: 'other' }), fallback], 'https://impromptu')
+		expect(resolved).toEqual({
+			type: 'OpenAI',
+			baseUrl: 'https://impromptu',
+			apiKey: 'default-key',
+		})
+	})
+})
+
+describe('model cache resolution', () => {
+	const first = connection({ baseUrl: 'https://first' })
+	const second = connection({ baseUrl: 'https://second', isDefault: true })
+
+	beforeEach(() => {
+		modelToConnectionCache.clear()
+		getAvailableOpenaiModels.mockReset()
+	})
+
+	it('caches fetched models against the connection id and emits on change', async () => {
+		getAvailableOpenaiModels.mockResolvedValue(['m1', 'm2'])
+		const emitSpy = jest.spyOn(modelCacheUpdated, 'emit')
+
+		await getAvailableModelsAndUpdateCache(first)
+
+		expect(modelToConnectionCache.get('m1')).toBe('OpenAIhttps://first')
+		expect(modelToConnectionCache.get('m2')).toBe('OpenAIhttps://first')
+		expect(emitSpy).toHaveBeenCalledTimes(1)
+
+		// second fetch with the same models: no change, no emit
+		await getAvailableModelsAndUpdateCache(first)
+		expect(emitSpy).toHaveBeenCalledTimes(1)
+
+		// a new model changes the cache and emits
+		getAvailableOpenaiModels.mockResolvedValue(['m1', 'm2', 'm3'])
+		await getAvailableModelsAndUpdateCache(first)
+		expect(emitSpy).toHaveBeenCalledTimes(2)
+	})
+
+	it('fetch failures propagate from the single-connection call', async () => {
+		getAvailableOpenaiModels.mockRejectedValue(new Error('offline'))
+		await expect(getAvailableModelsAndUpdateCache(first)).rejects.toThrow('offline')
+	})
+
+	it('fetches the default connection last so shared models map to it', async () => {
+		getAvailableOpenaiModels.mockResolvedValue(['shared'])
+
+		await getAllAvailableModelsAndUpdateCache([first, second])
+
+		expect(getAvailableOpenaiModels.mock.calls.map((call: any[]) => call[0].baseUrl)).toEqual([
+			'https://first',
+			'https://second',
+		])
+		expect(modelToConnectionCache.get('shared')).toBe('OpenAIhttps://second')
+	})
+
+	it('swallows fetch failures across all connections', async () => {
+		getAvailableOpenaiModels.mockRejectedValue(new Error('offline'))
+		await expect(getAllAvailableModelsAndUpdateCache([first, second])).resolves.toBeUndefined()
+	})
+
+	it('resolves from the cache without refetching', async () => {
+		modelToConnectionCache.set('m1', 'OpenAIhttps://first')
+
+		const resolved = await resolveConnectionForModel([first, second], 'm1')
+
+		expect(resolved).toBe(first)
+		expect(getAvailableOpenaiModels).not.toHaveBeenCalled()
+	})
+
+	it('refetches on a cache miss and resolves from the refreshed cache', async () => {
+		getAvailableOpenaiModels.mockResolvedValue(['m2'])
+
+		const resolved = await resolveConnectionForModel([first, second], 'm2')
+
+		expect(resolved).toBe(second)
+		expect(getAvailableOpenaiModels).toHaveBeenCalledTimes(2) // once per connection
+	})
+
+	it('falls back to the default connection for unknown models', async () => {
+		getAvailableOpenaiModels.mockResolvedValue(['other'])
+
+		const resolved = await resolveConnectionForModel([first, second], 'unknown-model')
+
+		expect(resolved).toBe(second)
+	})
+
+	it('returns null when there are no connections at all', async () => {
+		getAvailableOpenaiModels.mockResolvedValue([])
+
+		const resolved = await resolveConnectionForModel([], 'm1')
+
+		expect(resolved).toBeNull()
 	})
 })
