@@ -134,3 +134,89 @@ describe('getImageLinkResolver', () => {
 		expect(globalThis.URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake')
 	})
 })
+
+describe('getImageLinkResolver image resizing', () => {
+	const realCreateElement = document.createElement.bind(document)
+
+	function fakeImage(width: number, height: number) {
+		class FakeImage {
+			onload: () => void = () => {}
+			onerror: () => void = () => {}
+			set src(_value: string) {
+				Promise.resolve().then(() => {
+					Object.defineProperties(this, {
+						width: { value: width },
+						height: { value: height },
+					})
+					this.onload()
+				})
+			}
+		}
+		;(globalThis as any).Image = FakeImage
+	}
+
+	function fakeCanvas(toDataUrl: jest.Mock) {
+		return {
+			width: 0,
+			height: 0,
+			getContext: () => ({ drawImage: jest.fn() }),
+			toDataURL: toDataUrl,
+		}
+	}
+
+	beforeEach(() => {
+		;(globalThis as any).URL.createObjectURL = jest.fn(() => 'blob:fake')
+		;(globalThis as any).URL.revokeObjectURL = jest.fn()
+	})
+
+	afterEach(() => {
+		document.createElement = realCreateElement
+	})
+
+	it('scales oversized images down to the size limit', async () => {
+		const toDataUrl = jest.fn(() => 'data:image/png;base64,RESIZED')
+		jest.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
+			tag === 'canvas' ? (fakeCanvas(toDataUrl) as any) : realCreateElement(tag)) as any)
+		fakeImage(1000, 500)
+		const app = fakeApp(fakeFile('png'))
+
+		const result = await getImageLinkResolver(app, '', 256)('picture')
+
+		expect(toDataUrl).toHaveBeenCalledWith('image/png')
+		// canvas was sized to fit within 256
+		const canvas = toDataUrl.mock.contexts[0] as any
+		expect(canvas.width).toBe(256)
+		expect(canvas.height).toBe(128)
+		expect(result).toBe('data:image/png;base64,RESIZED')
+	})
+
+	it('resizes gifs to png data urls', async () => {
+		const toDataUrl = jest.fn(() => 'data:image/png;base64,GIF')
+		jest.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
+			tag === 'canvas' ? (fakeCanvas(toDataUrl) as any) : realCreateElement(tag)) as any)
+		fakeImage(1000, 1000)
+		const app = fakeApp(fakeFile('gif'))
+
+		const result = await getImageLinkResolver(app, '', 100)('picture')
+
+		expect(toDataUrl).toHaveBeenCalledWith('image/png')
+		expect(result).toBe('data:image/png;base64,GIF')
+	})
+
+	it('falls back to the original bytes when image loading fails', async () => {
+		class FailingImage {
+			onload: () => void = () => {}
+			onerror: () => void = () => {}
+			set src(_value: string) {
+				Promise.resolve().then(() => this.onerror())
+			}
+		}
+		;(globalThis as any).Image = FailingImage
+		const app = fakeApp(fakeFile('png'))
+
+		const result = await getImageLinkResolver(app, '', 256)('picture')
+
+		expect(result).toMatch(/^data:image\/png;base64,/)
+		expect(globalThis.URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake')
+	})
+})

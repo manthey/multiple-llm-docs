@@ -146,3 +146,36 @@ describe('ModelPickerModal', () => {
 		expect(modal.getSuggestions('').map((model: any) => model.name)).toEqual(['local-model'])
 	})
 })
+
+describe('ModelPickerModal.renderSuggestion', () => {
+	beforeEach(() => {
+		resetCaptured()
+	})
+
+	it('renders the pin, title, and connection url subtext', async () => {
+		modelToConnectionCache.set('gpt-4o', 'OpenAIhttps://api.openai.com')
+		const plugin = fakePlugin({ connections: [connection()], pinnedModels: { 'gpt-4o': true } })
+		const modal = makeModal(plugin)
+
+		const el = document.createElement('div')
+		modal.renderSuggestion(modal.getSuggestions('')[0], el)
+
+		expect(el.querySelector('.llmdocs-suggest-item-title')!.textContent).toBe('gpt-4o')
+		expect(el.querySelector('.llmdocs-suggest-item-subtext')!.textContent).toBe('api.openai.com')
+		expect(el.querySelector('.llmdocs-suggest-item-pin')!.classList.contains('pinned')).toBe(true)
+	})
+
+	it('clicking the pin toggles the pin', async () => {
+		modelToConnectionCache.set('gpt-4o', 'OpenAIhttps://api.openai.com')
+		const plugin = fakePlugin({ connections: [connection()] })
+		const modal = makeModal(plugin)
+
+		const el = document.createElement('div')
+		modal.renderSuggestion(modal.getSuggestions('')[0], el)
+		const pin = el.querySelector('.llmdocs-suggest-item-pin') as HTMLElement
+
+		await pin.onclick!(new MouseEvent('click', { bubbles: true }))
+
+		expect(plugin.settings.pinnedModels['gpt-4o']).toBe(true)
+	})
+})
