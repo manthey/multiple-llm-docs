@@ -289,3 +289,156 @@ describe('LlmDocsPlugin', () => {
 		expect(request).not.toHaveBeenCalled()
 	})
 })
+
+describe('LlmDocsPlugin commands', () => {
+	let commands: Record<string, any>
+	let plugin: any
+	let app: any
+
+	beforeEach(async () => {
+		resetCaptured()
+		jest.clearAllMocks()
+		;({ plugin, app } = makePlugin())
+		commands = {}
+		jest.spyOn(plugin, 'addCommand').mockImplementation((command: any) => {
+			commands[command.id] = command
+			return command
+		})
+		await plugin.onload()
+		await plugin.loadSettings()
+	})
+
+	it('the create command creates a new doc', async () => {
+		const createNewDoc = jest.spyOn(plugin, 'createNewDoc').mockResolvedValue(undefined)
+		await commands['create'].callback()
+		expect(createNewDoc).toHaveBeenCalled()
+	})
+
+	it('the complete editor callback runs completeDoc when a file is open', async () => {
+		const completeDoc = jest.spyOn(plugin, 'completeDoc').mockResolvedValue(undefined)
+		const editor = fakeEditor()
+		await commands['complete'].editorCallback(editor, { file: fakeFile() })
+		expect(completeDoc).toHaveBeenCalledWith(editor, expect.anything())
+
+		await commands['complete'].editorCallback(editor, { file: null })
+		expect(completeDoc).toHaveBeenCalledTimes(1)
+	})
+
+	it('the chat editor callback runs chatWithDoc when a file is open', async () => {
+		const chatWithDoc = jest.spyOn(plugin as any, 'chatWithDoc').mockResolvedValue(undefined)
+		await commands['chat_with_current_document'].editorCallback(fakeEditor(), { file: fakeFile() })
+		expect(chatWithDoc).toHaveBeenCalled()
+	})
+
+	it('the ribbon icon creates a new doc', async () => {
+		const createNewDoc = jest.spyOn(plugin, 'createNewDoc').mockResolvedValue(undefined)
+		jest.spyOn(plugin, 'addRibbonIcon').mockImplementation((_icon, _title, callback) => {
+			;(commands as any).__ribbon = callback
+			return document.createElement('div')
+		})
+		await plugin.onload()
+		await (commands as any).__ribbon()
+		expect(createNewDoc).toHaveBeenCalled()
+	})
+
+	it('change_model writes the chosen model into the frontmatter', async () => {
+		const { ModelPickerModal }: any = jest.requireMock('./settings-tab/model-picker')
+		ModelPickerModal.mockImplementation(() => ({ openAndGetResult: jest.fn().mockResolvedValue('new-model') }))
+		const file = fakeFile()
+		file.fm = { model: 'old-model' }
+
+		await commands['change_model'].editorCallback(fakeEditor(), { file })
+
+		expect(file.fm.model).toBe('new-model')
+		expect(notices()).toContain('Changed to new-model')
+	})
+
+	it('change_model leaves the frontmatter alone when dismissed', async () => {
+		const { ModelPickerModal }: any = jest.requireMock('./settings-tab/model-picker')
+		ModelPickerModal.mockImplementation(() => ({ openAndGetResult: jest.fn().mockResolvedValue(null) }))
+		const file = fakeFile()
+		file.fm = { model: 'old-model' }
+
+		await commands['change_model'].editorCallback(fakeEditor(), { file })
+
+		expect(file.fm.model).toBe('old-model')
+	})
+
+	it('change_model uses the connection named in llm_connection', async () => {
+		const { ModelPickerModal }: any = jest.requireMock('./settings-tab/model-picker')
+		const openAndGetResult = jest.fn().mockResolvedValue(null)
+		ModelPickerModal.mockImplementation(() => ({ openAndGetResult }))
+		const file = fakeFile()
+		file.fm = { llm_connection: 'main' }
+		plugin.settings.connections = [{ type: 'OpenAI', baseUrl: 'https://default', apiKey: 'k', name: 'main' }]
+
+		await commands['change_model'].editorCallback(fakeEditor(), { file })
+
+		// the modal received a single resolved connection for the named url
+		const [app, pluginArg, alternate] = ModelPickerModal.mock.calls[0]
+		expect(app).toBe(plugin.app)
+		expect(pluginArg).toBe(plugin)
+		expect(alternate.baseUrl).toBe('https://default')
+	})
+
+	it('append_model adds the chosen model to the existing list', async () => {
+		const { ModelPickerModal }: any = jest.requireMock('./settings-tab/model-picker')
+		ModelPickerModal.mockImplementation(() => ({ openAndGetResult: jest.fn().mockResolvedValue('new-model') }))
+		const file = fakeFile()
+		file.fm = { model: 'old-model' }
+
+		await commands['append_model'].editorCallback(fakeEditor(), { file })
+
+		expect(file.fm.model).toEqual(['old-model', 'new-model'])
+		expect(notices()).toContain('Changed to old-model, new-model')
+	})
+
+	it('select_tools writes the chosen tool filters into the frontmatter', async () => {
+		const { ToolPickerModal }: any = jest.requireMock('./settings-tab/tool-picker')
+		ToolPickerModal.mockImplementation(() => ({ openAndGetResult: jest.fn().mockResolvedValue(['t1', 't2']) }))
+		const file = fakeFile()
+		file.fm = {}
+
+		await commands['select_tools'].editorCallback(fakeEditor(), { file })
+
+		expect(file.fm.llm_tools).toEqual(['t1', 't2'])
+	})
+
+	it('select_tools leaves the frontmatter alone when dismissed', async () => {
+		const { ToolPickerModal }: any = jest.requireMock('./settings-tab/tool-picker')
+		ToolPickerModal.mockImplementation(() => ({ openAndGetResult: jest.fn().mockResolvedValue(null) }))
+		const file = fakeFile()
+		file.fm = { llm_tools: ['existing'] }
+
+		await commands['select_tools'].editorCallback(fakeEditor(), { file })
+
+		expect(file.fm.llm_tools).toEqual(['existing'])
+	})
+
+	it('wake lock failures are swallowed', async () => {
+		;(globalThis as any).navigator.wakeLock = {
+			request: jest.fn(async () => {
+				throw new Error('denied')
+			}),
+		}
+		const file = fakeFile()
+		LlmDoc.fromFile.mockResolvedValue({ complete: jest.fn(async () => {}), stop: jest.fn() })
+		app.workspace.getLeavesOfType.mockReturnValue([])
+
+		await expect(plugin.completeDoc(fakeEditor(), file)).resolves.toBeUndefined()
+	})
+
+	it('wake lock release failures are swallowed', async () => {
+		const { plugin, app, sentinel } = makePlugin()
+		await plugin.loadSettings()
+		plugin.settings.stayAwake = true
+		sentinel.release.mockRejectedValue(new Error('release failed'))
+		;(globalThis as any).navigator.wakeLock = { request: jest.fn(async () => sentinel) }
+		const file = fakeFile()
+		LlmDoc.fromFile.mockResolvedValue({ complete: jest.fn(async () => {}), stop: jest.fn() })
+		app.workspace.getLeavesOfType.mockReturnValue([])
+
+		await expect(plugin.completeDoc(fakeEditor(), file)).resolves.toBeUndefined()
+		expect(sentinel.release).toHaveBeenCalled()
+	})
+})
