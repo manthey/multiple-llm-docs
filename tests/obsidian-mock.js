@@ -61,10 +61,29 @@ function applyElementHelpers(proto) {
 		)
 		return this
 	}
+	proto.hide = function () {
+		this.style.display = 'none'
+		return this
+	}
+	proto.show = function () {
+		this.style.display = ''
+		return this
+	}
 }
 
 applyElementHelpers(Element.prototype)
 applyElementHelpers(DocumentFragment.prototype)
+
+// jsdom does not implement innerText; map it to textContent.
+Object.defineProperty(HTMLElement.prototype, 'innerText', {
+	get() {
+		return this.textContent
+	},
+	set(value) {
+		this.textContent = value
+	},
+	configurable: true,
+})
 
 // ---------------------------------------------------------------------------
 // Captured components and notices for test assertions
@@ -340,6 +359,9 @@ class TFolder {}
 
 const Platform = { isMobile: false, isMobileApp: false, isDesktopApp: false, isIosApp: false, isAndroidApp: false }
 
+// sentinel field object used by code calling state.field(editorInfoField)
+const editorInfoField = { editorInfo: true }
+
 function getIcon(name) {
 	return document.createElement('span')
 }
@@ -394,6 +416,7 @@ module.exports = {
 	TFile,
 	TFolder,
 	Platform,
+	editorInfoField,
 	getIcon,
 	setIcon,
 	normalizePath,
