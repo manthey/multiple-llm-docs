@@ -15,5 +15,10 @@
   },
   "include": [
     "**/*.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/settings-tab/test-utils.ts",
+    "tests"
   ]
 }
