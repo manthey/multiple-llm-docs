@@ -52,9 +52,7 @@ jest.mock('./mcp', () => {
 		})
 		this.getOpenaiTools = jest.fn(() => [])
 		this.callTool = jest.fn(async (request: any) => {
-			return (
-				state.callToolResults.shift() ?? { content: '', isError: false, name: request.name }
-			)
+			return state.callToolResults.shift() ?? { content: '', isError: false, name: request.name }
 		})
 		this.disconnect = jest.fn(async () => {})
 	})
@@ -65,10 +63,11 @@ jest.mock('./mcp', () => {
 const { OpenaiChatCompletionStream }: any = jest.requireMock('./open-ai')
 const { McpManager }: any = jest.requireMock('./mcp')
 
-const streamState = () => OpenaiChatCompletionStream.__state as {
-	behaviors: any[]
-	instances: any[]
-}
+const streamState = () =>
+	OpenaiChatCompletionStream.__state as {
+		behaviors: any[]
+		instances: any[]
+	}
 const mcpState = () => McpManager.__state as { callToolResults: any[]; connectError: Error | null }
 function lastManager(): any {
 	return McpManager.mock.instances[McpManager.mock.instances.length - 1]
@@ -107,8 +106,19 @@ function fakeApp() {
 	return app as any
 }
 
-function fakeEditor() {
-	return { setCursor: jest.fn(), lastLine: () => 5 } as any
+/**
+ * Fake editor. When `content` is provided, the editor mirrors it (lastLine and
+ * getValue are derived from it), simulating an editor that has synced the file.
+ * Without it, the editor pretends to already be synced with a completed
+ * document so cursor-waiting tests don't stall.
+ */
+function fakeEditor(content?: () => string) {
+	const value = content ?? (() => '\n# user\n')
+	return {
+		setCursor: jest.fn(),
+		getValue: value,
+		lastLine: () => value().split('\n').length - 1,
+	} as any
 }
 
 function fakeFile(content: string): TFile {
@@ -117,7 +127,7 @@ function fakeFile(content: string): TFile {
 
 const toolServers: McpToolServerSettings[] = [{ name: 'srv', type: 'http', url: 'http://localhost/mcp' }]
 
-async function completeDoc(app: any, file: TFile, editor = fakeEditor()) {
+async function completeDoc(app: any, file: TFile, editor = fakeEditor(() => file.content)) {
 	const doc = await LlmDoc.fromFile(app, file, defaults)
 	await doc.complete(connections, editor, [])
 	return doc
@@ -286,13 +296,13 @@ describe('LlmDoc.complete', () => {
 		streamState().behaviors = [
 			{
 				content: 'using tool',
-				toolCalls: [
-					{ id: 't1', type: 'function', function: { name: 'search', arguments: '{"q":"x"}' } },
-				],
+				toolCalls: [{ id: 't1', type: 'function', function: { name: 'search', arguments: '{"q":"x"}' } }],
 			},
 			{ content: 'final answer' },
 		]
-		mcpState().callToolResults = [{ content: 'tool result text', isError: false, name: 'search', serverName: 'srv' }]
+		mcpState().callToolResults = [
+			{ content: 'tool result text', isError: false, name: 'search', serverName: 'srv' },
+		]
 
 		const doc = await LlmDoc.fromFile(app, file, defaults)
 		await doc.complete(connections, fakeEditor(), toolServers)
@@ -371,6 +381,43 @@ describe('LlmDoc.complete', () => {
 		streamState().behaviors = [{ error: new Error('bad model') }]
 
 		await expect(completeDoc(app, file)).rejects.toThrow('bad model')
+	})
+
+	it('places the cursor after the appended # user heading once the editor has synced', async () => {
+		const app = fakeApp()
+		const file = fakeFile('---\nmodel: m1\n---\n# user\nhello\n')
+		streamState().behaviors = [{ content: 'the answer' }]
+
+		const doc = await LlmDoc.fromFile(app, file, defaults)
+		// simulate an editor that only receives the external file changes after a
+		// few polls, as happens with real asynchronous propagation
+		let synced = false
+		const editor = fakeEditor(() => (synced ? file.content : ''))
+		const poll = setInterval(() => {
+			synced = true
+		}, 25)
+		try {
+			await doc.complete(connections, editor, [])
+		} finally {
+			clearInterval(poll)
+		}
+
+		expect(file.content.endsWith('\n# user\n')).toBe(true)
+		// the cursor must be on the last line of the synced document (the empty
+		// line after the "# user" heading), not on a line of the assistant's text
+		expect(editor.setCursor).toHaveBeenCalledWith({ line: file.content.split('\n').length - 1, ch: 0 })
+	})
+
+	it('still sets a cursor position when the editor never syncs the appended text', async () => {
+		const app = fakeApp()
+		const file = fakeFile('---\nmodel: m1\n---\n# user\nhello\n')
+		streamState().behaviors = [{ content: 'the answer' }]
+
+		const doc = await LlmDoc.fromFile(app, file, defaults)
+		const editor = fakeEditor(() => 'stale')
+		await doc.complete(connections, editor, [])
+
+		expect(editor.setCursor).toHaveBeenCalledWith({ line: 0, ch: 0 })
 	})
 
 	it('does nothing but append the user heading when stopped', async () => {

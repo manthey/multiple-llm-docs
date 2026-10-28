@@ -242,8 +242,17 @@ export class LlmDoc {
 
 		await this.app.vault.append(this.file, '\n# user\n')
 
-		// hack to ensure editor has the latest file changes before setting cursor position
-		await sleep(10)
+		// wait for the editor to reflect the appended text before placing the cursor.
+		// external file changes propagate to the editor asynchronously, so a fixed
+		// delay is unreliable: if the change hasn't arrived yet, editor.lastLine()
+		// is still the last line of the assistant's response and the cursor would
+		// be placed there instead of after the "# user" heading
+		for (let attempt = 0; attempt < 50; attempt++) {
+			if (editor.getValue().endsWith('\n# user\n')) {
+				break
+			}
+			await sleep(20)
+		}
 
 		editor.setCursor({ line: editor.lastLine(), ch: 0 })
 	}
