@@ -7,3 +7,8 @@ globalThis.createFragment = (cb) => {
 }
 
 globalThis.sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// Guardrail: network access is disabled by default in tests. Tests that need
+// it must install their own explicit fetch mock (e.g. open-ai tests mock
+// global.fetch with canned responses).
+globalThis.fetch = () => Promise.reject(new Error('Network calls are disabled in tests; mock fetch explicitly.'))

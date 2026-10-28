@@ -284,9 +284,15 @@ class Modal {
 	}
 	open() {
 		document.body.appendChild(this.modalEl)
-		this.onOpen && this.onOpen()
+		try {
+			this._onOpenDone = Promise.resolve(this.onOpen && this.onOpen())
+		} catch (error) {
+			this._onOpenDone = Promise.reject(error)
+		}
 		return this
 	}
+	onOpen() {}
+	onClose() {}
 	close() {
 		this.onClose && this.onClose()
 		this.modalEl.remove()
