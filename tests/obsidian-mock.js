@@ -349,6 +349,26 @@ function normalizePath(path) {
 	return path
 }
 
+/** Minimal frontmatter detection: '---\n<yaml>\n---\n' prefix. */
+function getFrontMatterInfo(text) {
+	if (!text.startsWith('---')) {
+		return { exists: false, frontmatter: '', contentStart: 0 }
+	}
+	const end = text.indexOf('\n---', 3)
+	if (end === -1) {
+		return { exists: false, frontmatter: '', contentStart: 0 }
+	}
+	const yamlText = text.slice(4, end)
+	const contentStart = text.indexOf('\n', end + 1) + 1
+	return { exists: true, frontmatter: yamlText, contentStart }
+}
+
+function parseYaml(text) {
+	// eslint-disable-next-line @typescript-eslint/no-var-requires
+	const yaml = require('js-yaml')
+	return yaml.load(text)
+}
+
 function arrayBufferToBase64(buffer) {
 	const bytes = new Uint8Array(buffer)
 	let binary = ''
@@ -377,6 +397,8 @@ module.exports = {
 	getIcon,
 	setIcon,
 	normalizePath,
+	getFrontMatterInfo,
+	parseYaml,
 	arrayBufferToBase64,
 	base64ToArrayBuffer,
 	__captured,
