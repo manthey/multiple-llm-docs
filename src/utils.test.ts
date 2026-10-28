@@ -1,5 +1,5 @@
-import { describe, expect, test } from '@jest/globals'
-import { splitKeepingSeparators } from './utils'
+import { describe, expect, it, test } from '@jest/globals'
+import { splitKeepingSeparators, ValueEmitter, SimpleEventEmitter } from './utils'
 
 describe('utils', () => {
 	test('splitKeepingSeparators()', () => {
@@ -66,8 +66,6 @@ describe('utils', () => {
 		])
 	})
 })
-
-import { ValueEmitter, SimpleEventEmitter } from './utils'
 
 describe('ValueEmitter', () => {
 	it('notifies all listeners on emit', () => {

@@ -81,12 +81,12 @@ describe('addToolServersSettings', () => {
 
 		const nameInput = group(0).querySelector<HTMLInputElement>('input[placeholder="Server name"]')!
 		nameInput.value = 'Renamed'
-		await nameInput.oninput!(new Event('input'))
+		await nameInput.oninput!(new Event('input') as any)
 		expect(plugin.settings.toolServers[0].name).toBe('Renamed')
 
 		const url = inputByPlaceholder(group(0), 'URL (e.g. http://localhost:3000/mcp)')
 		url.value = 'http://other:1234/mcp'
-		await url.oninput!(new Event('input'))
+		await url.oninput!(new Event('input') as any)
 		expect(plugin.settings.toolServers[0].url).toBe('http://other:1234/mcp')
 		expect(plugin.saveSettings).toHaveBeenCalled()
 	})
@@ -100,7 +100,7 @@ describe('addToolServersSettings', () => {
 			'Headers (Key:Value, comma-separated, e.g. Authorization:Bearer token123)',
 		)
 		headers.value = 'Authorization:Bearer t1, not-a-pair, X-A: B2'
-		await headers.oninput!(new Event('input'))
+		await headers.oninput!(new Event('input') as any)
 
 		expect(plugin.settings.toolServers[0].headers).toEqual({ Authorization: 'Bearer t1', 'X-A': 'B2' })
 	})
@@ -113,7 +113,7 @@ describe('addToolServersSettings', () => {
 
 		const env = inputByPlaceholder(group(0), 'Environment (KEY=VALUE, space-separated)')
 		env.value = 'KEY=value with  spaces B=2'
-		await env.oninput!(new Event('input'))
+		await env.oninput!(new Event('input') as any)
 
 		expect(plugin.settings.toolServers[0].env).toEqual({ KEY: 'value', B: '2' })
 	})
@@ -126,7 +126,7 @@ describe('addToolServersSettings', () => {
 
 		const args = inputByPlaceholder(group(0), 'Arguments (space-separated)')
 		args.value = '  -y   pkg  '
-		await args.oninput!(new Event('input'))
+		await args.oninput!(new Event('input') as any)
 
 		expect(plugin.settings.toolServers[0].args).toEqual(['-y', 'pkg'])
 	})
@@ -150,7 +150,7 @@ describe('addToolServersSettings', () => {
 		try {
 			const plugin = fakePlugin({ toolServers: [httpServer()] })
 			const { group } = render(plugin)
-			const options = Array.from(group(0).querySelectorAll('select option'))
+			const options = Array.from(group(0).querySelectorAll<HTMLOptionElement>('select option'))
 			expect(options.map((option) => option.value)).toEqual(['http'])
 		} finally {
 			Platform.isMobile = previous
