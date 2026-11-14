@@ -193,7 +193,8 @@ describe('LlmDocsPlugin', () => {
 	it('createNewDoc creates the docs folder and a new document, then opens it', async () => {
 		const { plugin, app } = makePlugin()
 		await plugin.loadSettings()
-		const docFile = fakeFile('LLM/2026-10-28_01_LLM.md')
+        const dateString = new Date().toISOString().split('T')[0]
+        const docFile = fakeFile(`LLM/${dateString}_01_LLM.md`)
 		LlmDoc.create.mockResolvedValue({ file: docFile })
 
 		const editor = fakeEditor()
@@ -203,7 +204,7 @@ describe('LlmDocsPlugin', () => {
 
 		expect(app.vault.createFolder).toHaveBeenCalledWith('LLM')
 		const [, path, properties, messages] = LlmDoc.create.mock.calls[0]
-		expect(path).toBe('LLM/2026-10-28_01_LLM.md')
+        expect(path).toBe(`LLM/${dateString}_01_LLM.md`)
 		expect(properties).toEqual({ model: 'gpt-4o' })
 		expect(messages).toEqual([{ role: 'user', content: '' }])
 
